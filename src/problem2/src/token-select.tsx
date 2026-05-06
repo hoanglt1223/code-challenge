@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Token } from './use-tokens';
+import * as Select from '@radix-ui/react-select';
+import type { Token } from './lib/parse-prices';
 
 interface Props {
   tokens: Token[];
@@ -9,81 +9,48 @@ interface Props {
 }
 
 export function TokenSelect({ tokens, value, onChange, disabledSymbol }: Props) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toUpperCase();
-    return q ? tokens.filter((t) => t.symbol.includes(q)) : tokens;
-  }, [tokens, query]);
-
   return (
-    <div className="token-select" ref={ref}>
-      <button
-        type="button"
-        className="token-button"
-        onClick={() => setOpen((o) => !o)}
-      >
+    <Select.Root
+      value={value?.symbol ?? ''}
+      onValueChange={(symbol) => {
+        const selected = tokens.find((token) => token.symbol === symbol);
+        if (selected) onChange(selected);
+      }}
+    >
+      <Select.Trigger className="token-button" aria-label="Token">
         {value ? (
           <>
             <img src={value.iconUrl} alt="" className="token-icon" />
-            <span>{value.symbol}</span>
+            <Select.Value />
           </>
         ) : (
-          <span className="token-placeholder">Select</span>
+          <Select.Value placeholder="Select" />
         )}
-        <span className="chevron">▾</span>
-      </button>
+        <Select.Icon className="chevron">▾</Select.Icon>
+      </Select.Trigger>
 
-      {open && (
-        <div className="token-dropdown">
-          <input
-            autoFocus
-            type="text"
-            placeholder="Search token…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="token-search"
-          />
-          <ul className="token-list">
-            {filtered.length === 0 && (
-              <li className="token-empty">No tokens match.</li>
-            )}
-            {filtered.map((t) => {
-              const disabled = t.symbol === disabledSymbol;
-              return (
-                <li key={t.symbol}>
-                  <button
-                    type="button"
-                    className="token-option"
-                    disabled={disabled}
-                    onClick={() => {
-                      onChange(t);
-                      setOpen(false);
-                      setQuery('');
-                    }}
-                  >
-                    <img src={t.iconUrl} alt="" className="token-icon" />
-                    <span className="token-symbol">{t.symbol}</span>
-                    <span className="token-price">
-                      ${t.price.toLocaleString(undefined, { maximumFractionDigits: 6 })}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
+      <Select.Portal>
+        <Select.Content className="token-dropdown" position="popper" sideOffset={6}>
+          <Select.Viewport className="token-list">
+            {tokens.map((token) => (
+              <Select.Item
+                key={token.symbol}
+                value={token.symbol}
+                disabled={token.symbol === disabledSymbol}
+                className="token-option"
+              >
+                <img src={token.iconUrl} alt="" className="token-icon" />
+                <Select.ItemText>
+                  <span className="token-symbol">{token.symbol}</span>
+                </Select.ItemText>
+                <span className="token-price">
+                  ${token.price.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                </span>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   );
 }

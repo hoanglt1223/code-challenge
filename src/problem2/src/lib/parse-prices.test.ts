@@ -8,7 +8,7 @@ describe('parsePriceRows', () => {
       { currency: 'B', date: '2024-01-01T00:00:00Z', price: 1 },
     ];
     const tokens = parsePriceRows(rows);
-    expect(tokens.map((t) => t.symbol)).toEqual(['B']);
+    expect(tokens.map((token) => token.symbol)).toEqual(['B']);
   });
 
   it('keeps the latest price per symbol', () => {
@@ -17,8 +17,8 @@ describe('parsePriceRows', () => {
       { currency: 'ETH', date: '2024-06-01T00:00:00Z', price: 3000 },
       { currency: 'ETH', date: '2024-03-01T00:00:00Z', price: 2500 },
     ];
-    const [eth] = parsePriceRows(rows);
-    expect(eth.price).toBe(3000);
+    const [ethereum] = parsePriceRows(rows);
+    expect(ethereum.price).toBe(3000);
   });
 
   it('sorts symbols alphabetically', () => {
@@ -27,7 +27,7 @@ describe('parsePriceRows', () => {
       { currency: 'ATOM', date: '2024-01-01T00:00:00Z', price: 10 },
       { currency: 'ETH', date: '2024-01-01T00:00:00Z', price: 2000 },
     ];
-    expect(parsePriceRows(rows).map((t) => t.symbol)).toEqual(['ATOM', 'ETH', 'ZIL']);
+    expect(parsePriceRows(rows).map((token) => token.symbol)).toEqual(['ATOM', 'ETH', 'ZIL']);
   });
 
   it('returns empty for empty input', () => {
