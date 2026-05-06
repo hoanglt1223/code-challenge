@@ -45,14 +45,17 @@ const WalletPage: React.FC<Props> = (props) => {
 
   const formattedBalances: FormattedWalletBalance[] = useMemo(() => {
     return balances
-      .filter((b) => getPriority(b.blockchain) > -99 && b.amount > 0)
-      .map((b) => ({
-        ...b,
-        priority: getPriority(b.blockchain),
-        formatted: b.amount.toFixed(4),
-        usdValue: (prices[b.currency] ?? 0) * b.amount,
+      .filter(
+        (balance) =>
+          getPriority(balance.blockchain) > -99 && balance.amount > 0,
+      )
+      .map((balance) => ({
+        ...balance,
+        priority: getPriority(balance.blockchain),
+        formatted: balance.amount.toFixed(4),
+        usdValue: (prices[balance.currency] ?? 0) * balance.amount,
       }))
-      .sort((a, b) => b.priority - a.priority);
+      .sort((left, right) => right.priority - left.priority);
   }, [balances, prices]);
 
   return (

@@ -1,3 +1,4 @@
+// Function name and parameter `n` come from the challenge spec.
 // Assume n is a non-negative integer. For n <= 0 we return 0.
 
 var sum_to_n_a = function (n) {
@@ -7,18 +8,21 @@ var sum_to_n_a = function (n) {
 
 var sum_to_n_b = function (n) {
   let total = 0;
-  for (let i = 1; i <= n; i++) total += i;
+  for (let current = 1; current <= n; current++) total += current;
   return total;
 };
 
 var sum_to_n_c = function (n) {
   if (n <= 0) return 0;
-  return Array.from({ length: n }, (_, i) => i + 1).reduce((a, b) => a + b, 0);
+  return Array.from({ length: n }, (_unused, index) => index + 1).reduce(
+    (sum, current) => sum + current,
+    0,
+  );
 };
 
 if (require.main === module) {
-  for (const n of [0, 1, 5, 100, -3]) {
-    console.log(`n=${n}`, sum_to_n_a(n), sum_to_n_b(n), sum_to_n_c(n));
+  for (const inputN of [0, 1, 5, 100, -3]) {
+    console.log(`n=${inputN}`, sum_to_n_a(inputN), sum_to_n_b(inputN), sum_to_n_c(inputN));
   }
 }
 

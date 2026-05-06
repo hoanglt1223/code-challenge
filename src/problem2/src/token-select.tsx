@@ -4,7 +4,7 @@ import type { Token } from './lib/parse-prices';
 interface Props {
   tokens: Token[];
   value: Token | null;
-  onChange: (t: Token) => void;
+  onChange: (token: Token) => void;
   disabledSymbol?: string;
 }
 

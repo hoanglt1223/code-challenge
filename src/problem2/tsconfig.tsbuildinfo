@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/swap-form.test.tsx","./src/swap-form.tsx","./src/test-setup.ts","./src/token-select.tsx","./src/api/use-prices-query.ts","./src/lib/parse-prices.test.ts","./src/lib/parse-prices.ts","./src/schema/swap-schema.ts","./src/store/hooks.ts","./src/store/index.ts","./src/store/swap-slice.ts"],"version":"5.9.3"}
