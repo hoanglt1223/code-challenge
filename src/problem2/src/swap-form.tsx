@@ -189,7 +189,7 @@ export function SwapForm() {
       <button
         type="submit"
         className="cta"
-        disabled={isSubmitting || !!isSameToken}
+        disabled={isSubmitting || Boolean(isSameToken)}
       >
         {isSubmitting ? 'Swapping…' : 'Confirm Swap'}
       </button>
