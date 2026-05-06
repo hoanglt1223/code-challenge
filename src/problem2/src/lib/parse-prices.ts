@@ -10,7 +10,7 @@ export interface PriceRow {
   price: number;
 }
 
-const ICON_BASE =
+const ICON_BASE_URL =
   'https://raw.githubusercontent.com/Switcheo/token-icons/main/tokens';
 
 const ICON_OVERRIDES: Record<string, string> = {
@@ -22,23 +22,23 @@ const ICON_OVERRIDES: Record<string, string> = {
 };
 
 export function iconUrlFor(symbol: string): string {
-  return `${ICON_BASE}/${ICON_OVERRIDES[symbol] ?? symbol}.svg`;
+  return `${ICON_BASE_URL}/${ICON_OVERRIDES[symbol] ?? symbol}.svg`;
 }
 
 export function parsePriceRows(rows: PriceRow[]): Token[] {
-  const latest = new Map<string, PriceRow>();
+  const latestBySymbol = new Map<string, PriceRow>();
   for (const row of rows) {
     if (!row.price) continue;
-    const prev = latest.get(row.currency);
-    if (!prev || new Date(row.date) > new Date(prev.date)) {
-      latest.set(row.currency, row);
+    const previous = latestBySymbol.get(row.currency);
+    if (!previous || new Date(row.date) > new Date(previous.date)) {
+      latestBySymbol.set(row.currency, row);
     }
   }
-  return Array.from(latest.values())
+  return Array.from(latestBySymbol.values())
     .map((row) => ({
       symbol: row.currency,
       price: row.price,
       iconUrl: iconUrlFor(row.currency),
     }))
-    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+    .sort((left, right) => left.symbol.localeCompare(right.symbol));
 }

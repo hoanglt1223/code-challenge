@@ -1,96 +1,120 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useTokens, type Token } from './use-tokens';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useTokensQuery, type Token } from './api/use-prices-query';
+import { useAppDispatch, useAppSelector } from './store/hooks';
+import { setFromToken, setToToken, swapTokens } from './store/swap-slice';
+import { swapSchema, type SwapFormValues } from './schema/swap-schema';
 import { TokenSelect } from './token-select';
 
-type Side = 'from' | 'to';
+type SwapSide = 'from' | 'to';
+const SUBMIT_DELAY_MS = 1200;
 
-function formatAmount(n: number, max = 6): string {
-  if (!isFinite(n) || n === 0) return '';
-  return n.toLocaleString(undefined, {
-    maximumFractionDigits: max,
+function formatAmount(value: number, maxFractionDigits = 6): string {
+  if (!isFinite(value) || value === 0) return '';
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: maxFractionDigits,
     useGrouping: false,
   });
 }
 
 export function SwapForm() {
-  const { tokens, loading, error } = useTokens();
+  const dispatch = useAppDispatch();
+  const { fromTokenSymbol, toTokenSymbol } = useAppSelector((state) => state.swap);
+  const { data: tokens = [], isLoading, error } = useTokensQuery();
 
-  const [fromToken, setFromToken] = useState<Token | null>(null);
-  const [toToken, setToToken] = useState<Token | null>(null);
-  const [fromAmount, setFromAmount] = useState('');
-  const [toAmount, setToAmount] = useState('');
-  const [lastEdited, setLastEdited] = useState<Side>('from');
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
+  const fromToken = useMemo<Token | null>(
+    () => tokens.find((token) => token.symbol === fromTokenSymbol) ?? null,
+    [tokens, fromTokenSymbol],
+  );
+  const toToken = useMemo<Token | null>(
+    () => tokens.find((token) => token.symbol === toTokenSymbol) ?? null,
+    [tokens, toTokenSymbol],
+  );
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<SwapFormValues>({
+    resolver: zodResolver(swapSchema),
+    defaultValues: { fromAmount: '', toAmount: '' },
+    mode: 'onChange',
+  });
+
+  const fromAmount = watch('fromAmount');
+  const toAmount = watch('toAmount');
+  const [lastEditedSide, setLastEditedSide] = useState<SwapSide>('from');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tokens.length) return;
-    if (!fromToken) setFromToken(tokens.find((t) => t.symbol === 'ETH') ?? tokens[0]);
-    if (!toToken) setToToken(tokens.find((t) => t.symbol === 'USDC') ?? tokens[1] ?? tokens[0]);
-  }, [tokens, fromToken, toToken]);
+    if (!fromTokenSymbol) {
+      const defaultFrom = tokens.find((token) => token.symbol === 'ETH') ?? tokens[0];
+      dispatch(setFromToken(defaultFrom.symbol));
+    }
+    if (!toTokenSymbol) {
+      const defaultTo = tokens.find((token) => token.symbol === 'USDC') ?? tokens[1] ?? tokens[0];
+      dispatch(setToToken(defaultTo.symbol));
+    }
+  }, [tokens, fromTokenSymbol, toTokenSymbol, dispatch]);
 
-  const rate = useMemo(() => {
+  const exchangeRate = useMemo(() => {
     if (!fromToken || !toToken) return null;
     return fromToken.price / toToken.price;
   }, [fromToken, toToken]);
 
   useEffect(() => {
-    if (rate == null) return;
-    if (lastEdited === 'from') {
-      const n = parseFloat(fromAmount);
-      setToAmount(isNaN(n) ? '' : formatAmount(n * rate));
+    if (exchangeRate == null) return;
+    if (lastEditedSide === 'from') {
+      const numericFromAmount = parseFloat(fromAmount);
+      setValue(
+        'toAmount',
+        isNaN(numericFromAmount) ? '' : formatAmount(numericFromAmount * exchangeRate),
+      );
     } else {
-      const n = parseFloat(toAmount);
-      setFromAmount(isNaN(n) ? '' : formatAmount(n / rate));
+      const numericToAmount = parseFloat(toAmount);
+      setValue(
+        'fromAmount',
+        isNaN(numericToAmount) ? '' : formatAmount(numericToAmount / exchangeRate),
+      );
     }
-  }, [rate, fromAmount, toAmount, lastEdited]);
+  }, [exchangeRate, fromAmount, toAmount, lastEditedSide, setValue]);
 
-  const numericFrom = parseFloat(fromAmount);
-  const validationError =
-    !fromToken || !toToken
-      ? null
-      : fromToken.symbol === toToken.symbol
-        ? 'Pick two different tokens.'
-        : fromAmount && (isNaN(numericFrom) || numericFrom <= 0)
-          ? 'Enter an amount greater than zero.'
-          : null;
-
-  const canSubmit =
-    !submitting &&
-    !validationError &&
-    fromToken &&
-    toToken &&
-    numericFrom > 0 &&
-    fromToken.symbol !== toToken.symbol;
-
-  function swapSides() {
-    setFromToken(toToken);
-    setToToken(fromToken);
-    setFromAmount(toAmount);
-    setToAmount(fromAmount);
-    setLastEdited((s) => (s === 'from' ? 'to' : 'from'));
+  function handleSwapDirection() {
+    dispatch(swapTokens());
+    const previousFromAmount = fromAmount;
+    setValue('fromAmount', toAmount);
+    setValue('toAmount', previousFromAmount);
+    setLastEditedSide((previous) => (previous === 'from' ? 'to' : 'from'));
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
-    setSubmitting(true);
-    setSuccess(null);
-    await new Promise((r) => setTimeout(r, 1200));
-    setSubmitting(false);
-    setSuccess(
-      `Swapped ${fromAmount} ${fromToken!.symbol} → ${toAmount} ${toToken!.symbol}`,
+  const onSubmit = handleSubmit(async (values) => {
+    if (!fromToken || !toToken || fromToken.symbol === toToken.symbol) return;
+    setIsSubmitting(true);
+    setSuccessMessage(null);
+    await new Promise((resolve) => setTimeout(resolve, SUBMIT_DELAY_MS));
+    setIsSubmitting(false);
+    setSuccessMessage(
+      `Swapped ${values.fromAmount} ${fromToken.symbol} → ${values.toAmount} ${toToken.symbol}`,
     );
-    setFromAmount('');
-    setToAmount('');
+    reset({ fromAmount: '', toAmount: '' });
+  });
+
+  if (isLoading) return <div className="card"><p>Loading prices…</p></div>;
+  if (error) {
+    return (
+      <div className="card">
+        <p className="error">Failed to load prices: {(error as Error).message}</p>
+      </div>
+    );
   }
 
-  if (loading) {
-    return <div className="card"><p>Loading prices…</p></div>;
-  }
-  if (error) {
-    return <div className="card"><p className="error">Failed to load prices: {error}</p></div>;
-  }
+  const isSameToken = fromToken && toToken && fromToken.symbol === toToken.symbol;
 
   return (
     <form className="card" onSubmit={onSubmit} noValidate>
@@ -105,17 +129,18 @@ export function SwapForm() {
           type="text"
           inputMode="decimal"
           placeholder="0.0"
-          value={fromAmount}
-          onChange={(e) => {
-            setLastEdited('from');
-            setFromAmount(e.target.value.replace(/[^\d.]/g, ''));
-          }}
           aria-label="Amount to send"
+          {...register('fromAmount', {
+            onChange: (event) => {
+              setLastEditedSide('from');
+              event.target.value = event.target.value.replace(/[^\d.]/g, '');
+            },
+          })}
         />
         <TokenSelect
           tokens={tokens}
           value={fromToken}
-          onChange={setFromToken}
+          onChange={(token) => dispatch(setFromToken(token.symbol))}
           disabledSymbol={toToken?.symbol}
         />
       </fieldset>
@@ -123,7 +148,7 @@ export function SwapForm() {
       <button
         type="button"
         className="swap-toggle"
-        onClick={swapSides}
+        onClick={handleSwapDirection}
         aria-label="Swap direction"
       >
         ⇅
@@ -135,32 +160,38 @@ export function SwapForm() {
           type="text"
           inputMode="decimal"
           placeholder="0.0"
-          value={toAmount}
-          onChange={(e) => {
-            setLastEdited('to');
-            setToAmount(e.target.value.replace(/[^\d.]/g, ''));
-          }}
           aria-label="Amount to receive"
+          {...register('toAmount', {
+            onChange: (event) => {
+              setLastEditedSide('to');
+              event.target.value = event.target.value.replace(/[^\d.]/g, '');
+            },
+          })}
         />
         <TokenSelect
           tokens={tokens}
           value={toToken}
-          onChange={setToToken}
+          onChange={(token) => dispatch(setToToken(token.symbol))}
           disabledSymbol={fromToken?.symbol}
         />
       </fieldset>
 
-      {fromToken && toToken && rate != null && (
+      {fromToken && toToken && exchangeRate != null && (
         <p className="rate">
-          1 {fromToken.symbol} ≈ {formatAmount(rate)} {toToken.symbol}
+          1 {fromToken.symbol} ≈ {formatAmount(exchangeRate)} {toToken.symbol}
         </p>
       )}
 
-      {validationError && <p className="error">{validationError}</p>}
-      {success && <p className="success">{success}</p>}
+      {isSameToken && <p className="error">Pick two different tokens.</p>}
+      {errors.fromAmount && <p className="error">{errors.fromAmount.message}</p>}
+      {successMessage && <p className="success">{successMessage}</p>}
 
-      <button type="submit" className="cta" disabled={!canSubmit}>
-        {submitting ? 'Swapping…' : 'Confirm Swap'}
+      <button
+        type="submit"
+        className="cta"
+        disabled={isSubmitting || !!isSameToken}
+      >
+        {isSubmitting ? 'Swapping…' : 'Confirm Swap'}
       </button>
     </form>
   );
